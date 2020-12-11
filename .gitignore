@@ -1,0 +1,8 @@
+build/
+*.gb
+*.gbc
+*.sym
+dev/*.exe
+dev/*.jar
+dev/*.ini
+*.sav
