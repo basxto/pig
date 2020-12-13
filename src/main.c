@@ -22,6 +22,7 @@
 #define dir_S           u8(1<<1)
 #define dir_W           u8(1<<2)
 #define dir_N           u8(1<<3)
+#define terr_water      u8(1<<4)
 
 uint16_t seed;
 uint8_t overworld[map_size];
@@ -162,10 +163,35 @@ void generate_overworld(){
     }while(visited);
 }
 
+void generate_terrain(){
+    int height = 7;
+    for(uint8_t x = 0; x < map_width; ++x){
+        switch(arand() & 0x7){
+            case 0:
+                ++height;
+                break;
+            case 1:
+            case 2:
+                --height;
+                break;
+            default:
+                break;
+        }
+        if(height==4)
+            height = 5;
+        if(height==8)
+            height = 7;
+        for(uint8_t y = height*map_width; y < (8*map_width); y+=map_width){
+            overworld[x+y] |= terr_water;
+        }
+    }
+}
+
 void generate_map(){
     // initialize random numbers
     initarand(seed);
     generate_overworld();
+    generate_terrain();
 }
 
 void main() {
