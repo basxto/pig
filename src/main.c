@@ -122,35 +122,40 @@ void generate_overworld(){
             direction = ((direction << 1) | (direction >> 3)) & 0xF;
             ++try;
         }while(try < 4);
-        if(try >= 4){
-            //nothing was free :/
-            break;
+        if(try < 4){
+            if(DEBUG){
+                write_hex(3, 1, visited);
+                write_hex(8, 1, overworld[tile]);
+                write_hex(11, 1, direction);
+                write_hex(5, 1, try);
+            }
+            // actually draw path
+            overworld[tile] |= direction;
+            direction = ((direction << 2) | (direction >> 2)) & 0xF;
+            if(DEBUG)
+                write_hex(13, 1, direction);
+            overworld[next_tile] |= direction;
+            if(DEBUG){
+                write_hex(16, 1, tile);
+                write_hex(18, 1, next_tile);
+                draw_overworld();
+                waitpad(0xFF);
+                waitpadup();
+            }
+            //store tile in backtracker
+            backtrack[visited-1]=tile;
+            ++visited;
+            // move to next tile
+            tile = next_tile;
+            // we visited all tiles and don’t have to go through the whole backtrack
+            if(visited >= map_size)
+                break;
+        } else {
+            // nothing was free, go one tile back
+            --visited;
+            // this can overflow, but we don’t use it in that case
+            tile = backtrack[visited-1];
         }
-        if(DEBUG){
-            write_hex(3, 1, visited);
-            write_hex(8, 1, overworld[tile]);
-            write_hex(11, 1, direction);
-            write_hex(5, 1, try);
-        }
-        // actually draw path
-        overworld[tile] |= direction;
-        direction = ((direction << 2) | (direction >> 2)) & 0xF;
-        if(DEBUG)
-            write_hex(13, 1, direction);
-        // swap nibbles
-        overworld[next_tile] |= direction;// |= u8( u8(direction & u8(0x0F)) << u8(4) | u8(direction & u8(0xF0)) >> u8(4) );
-        if(DEBUG){
-            write_hex(16, 1, tile);
-            write_hex(18, 1, next_tile);
-            draw_overworld();
-            waitpad(0xFF);
-            waitpadup();
-        }
-        //next_tile = tile;
-        tile = next_tile;
-        ++visited;
-        if(visited >= map_size)
-            break;
     }while(visited);
 }
 
@@ -177,5 +182,8 @@ void main() {
         draw_overworld();
         if(!DEBUG)
             move_win(7, 16*8);
+        set_win_tiles(16, 0, 17, 1, "SEED");
+        write_hex(16, 1, (uint8_t)(seed>>8));
+        write_hex(18, 1, (uint8_t)(seed));
     }
 }
