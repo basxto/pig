@@ -27,14 +27,14 @@ $(BUILDIR):
 %$(ROM).ihx: %main.rel
 	$(LD) -nmjwxi -k "$(GBDKLIB)/gbz80/" -l gbz80.lib -k "$(GBDKLIB)/gb/" -l gb.lib -g .OAM=0xC000 -g .STACK=0xE000 -g .refresh_OAM=0xFF80 -g .init=0x000 -b _DATA=0xc0a0 -b _CODE=0x0200 $@ "${GBDKDIR}/lib/small/asxxxx/gb/crt0.o" $^
 
-$(BUILDIR)main.asm: src/main.c | $(BUILDIR) $(BUILDIR)squont8ng_micro_2bpp.c $(BUILDIR)blowharder_path_2bpp.c
+$(BUILDIR)main.asm: src/main.c | $(BUILDIR) $(BUILDIR)squont8ng_micro_2bpp.c $(BUILDIR)blowharder_path_2bpp.c $(BUILDIR)blowharder_bridge_2bpp.c
 $(BUILDIR)%.asm: src/%.c | $(BUILDIR)
 	$(CC) --fverbose-asm -S -o $@ $^
 
 $(BUILDIR)%.2bpp: pix/%_gbc.png | $(BUILDIR)
 	$(pngconvert) $< -o $@
 
-$(BUILDIR)blowharder_path.2bpp: pix/blowharder_path_gbc.png | $(BUILDIR)
+$(BUILDIR)blowharder_%.2bpp: pix/blowharder_%_gbc.png | $(BUILDIR)
 	$(pngconvert) -h $< -o $@
 
 %_2bpp.c: %.2bpp

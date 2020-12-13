@@ -4,22 +4,24 @@
 
 #include "../build/squont8ng_micro_2bpp.c"
 #include "../build/blowharder_path_2bpp.c"
+#include "../build/blowharder_bridge_2bpp.c"
 
 #ifndef DEBUG
 #define DEBUG      (0)
 #endif
 
-#define u8(x)      (uint8_t)(x)
-#define PATH_START u8(128)
-#define FONT_START u8(48)
-#define FONT_ASCII u8(FONT_START-48)
-#define FONT_HEX   u8(FONT_START+7)
-#define map_width  u8(10)
-#define map_size   u8(8*map_width)
-#define dir_E      u8(1<<0)
-#define dir_S      u8(1<<1)
-#define dir_W      u8(1<<2)
-#define dir_N      u8(1<<3)
+#define u8(x)           (uint8_t)(x)
+#define PATH_START      u8(128)
+#define BRIDGE_START    u8(PATH_START+(build_blowharder_path_2bpp_len/16))
+#define FONT_START      u8(48)
+#define FONT_ASCII      u8(FONT_START-48)
+#define FONT_HEX        u8(FONT_START+7)
+#define map_width       u8(10)
+#define map_size        u8(8*map_width)
+#define dir_E           u8(1<<0)
+#define dir_S           u8(1<<1)
+#define dir_W           u8(1<<2)
+#define dir_N           u8(1<<3)
 
 uint16_t seed;
 uint8_t overworld[map_size];
@@ -31,8 +33,9 @@ void init_screen() {
     HIDE_WIN;
     HIDE_SPRITES;
     DISPLAY_OFF;
-    set_bkg_data(PATH_START, (build_blowharder_path_2bpp_len/16), build_blowharder_path_2bpp);
-    set_bkg_data(FONT_START, (build_squont8ng_micro_2bpp_len/16), build_squont8ng_micro_2bpp);
+    set_bkg_data(PATH_START,   (build_blowharder_path_2bpp_len/16),   build_blowharder_path_2bpp);
+    set_bkg_data(BRIDGE_START, (build_blowharder_bridge_2bpp_len/16), build_blowharder_bridge_2bpp);
+    set_bkg_data(FONT_START,   (build_squont8ng_micro_2bpp_len/16),   build_squont8ng_micro_2bpp);
     // first screen
     set_bkg_tiles(3, 9, 13, 1, "PRESS0START1");
     // menu screen
