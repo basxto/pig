@@ -22,7 +22,7 @@ build: $(ROM).gb
 	$(MKROM) -yn "PROC-ISLAND-GEN" $^ $@
 
 $(BUILDIR):
-	mkdir $@
+	mkdir -p $@
 
 %$(ROM).ihx: %main.rel
 	$(LD) -nmjwxi -k "$(GBDKLIB)/gbz80/" -l gbz80.lib -k "$(GBDKLIB)/gb/" -l gb.lib -g .OAM=0xC000 -g .STACK=0xE000 -g .refresh_OAM=0xFF80 -g .init=0x000 -b _DATA=0xc0a0 -b _CODE=0x0200 $@ "${GBDKDIR}/lib/small/asxxxx/gb/crt0.o" $^

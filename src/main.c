@@ -5,6 +5,10 @@
 #include "../build/squont8ng_micro_2bpp.c"
 #include "../build/blowharder_path_2bpp.c"
 
+#ifndef DEBUG
+#define DEBUG      (0)
+#endif
+
 #define u8(x)      (uint8_t)(x)
 #define PATH_START u8(128)
 #define FONT_START u8(48)
@@ -76,7 +80,7 @@ void generate_overworld(){
     for(uint8_t i = 0; i < map_size; ++i){
         overworld[i] = 0;
     }
-    uint8_t try = 0;
+    uint8_t try;
     uint8_t visited = 1;
     uint8_t tile = arand() & 0x3F;// 16 tiles are left out (%64) map_size;
     // 0: E, 1: S, 2: W, 3: N
@@ -84,12 +88,12 @@ void generate_overworld(){
     //overworld[tile] = direction;
     //write_hex(16, 0, tile);
     //write_hex(18, 0, overworld[tile]);
+    if(DEBUG)
+        set_win_tiles(3, 0, 17, 1, "V0TY0OT0D0MD0T0NT");
     do{
         uint8_t next_tile = tile;
         try = 0;
         direction = 1<<(arand() & 0x3);
-        write_hex(8, 0, overworld[tile]);
-        write_hex(11, 0, direction);
         // check if direction is free
         // rotate otherwise
         // also calculate next tile
@@ -106,7 +110,7 @@ void generate_overworld(){
                     break;
                 }
             }else if(direction == dir_N){
-                if(!(overworld[tile] & dir_N) && tile < map_width){
+                if(!(overworld[tile] & dir_N) && tile >= map_width){
                     next_tile -= map_width;
                     break;
                 }
@@ -122,20 +126,30 @@ void generate_overworld(){
             //nothing was free :/
             break;
         }
+        if(DEBUG){
+            write_hex(3, 1, visited);
+            write_hex(8, 1, overworld[tile]);
+            write_hex(11, 1, direction);
+            write_hex(5, 1, try);
+        }
         // actually draw path
         overworld[tile] |= direction;
         //i = ((i << 4) | (i >> 4));
         direction = ((direction << 2) | (direction >> 2)) & 0xF;
-        write_hex(13, 0, direction);
+        if(DEBUG)
+            write_hex(13, 1, direction);
         // swap nibbles
         overworld[next_tile] |= direction;// |= u8( u8(direction & u8(0x0F)) << u8(4) | u8(direction & u8(0xF0)) >> u8(4) );
         //TODO: remove this debug stuff
-        write_hex(16, 0, tile);
-        write_hex(18, 0, next_tile);
-        //draw_overworld();
-        //waitpad(0xFF);
-        //waitpadup();
-        next_tile = tile;
+        if(DEBUG){
+            write_hex(16, 1, tile);
+            write_hex(18, 1, next_tile);
+            draw_overworld();
+            waitpad(0xFF);
+            waitpadup();
+        }
+        //next_tile = tile;
+        tile = next_tile;
         ++visited;
         if(visited >= map_size)
             break;
@@ -159,8 +173,11 @@ void main() {
         set_win_tiles(5, 9,  1, 1, "3");
         waitpad(0xFF);
         waitpadup();
+        if(DEBUG)
+            move_win(7, 16*8);
         generate_map();
         draw_overworld();
-        move_win(7, 17*8);
+        if(!DEBUG)
+            move_win(7, 16*8);
     }
 }
