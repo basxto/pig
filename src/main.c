@@ -10,6 +10,17 @@
 #define DEBUG      (0)
 #endif
 
+// palettes from doavi
+const unsigned int overworld_pal[][4] = {{
+	RGB(12, 25, 0), RGB(28, 16, 0), RGB(18, 7, 0), RGB(0, 0, 0)
+},{
+	RGB(28, 16, 0), RGB(8, 20, 31), RGB(18, 7, 0), RGB(0, 0, 0)
+},{
+	RGB(12, 25, 0), RGB(18, 7, 0), RGB(3, 14, 0), RGB(0, 0, 0)
+},{
+	RGB(12, 25, 0), RGB(18, 18, 18), RGB(10, 10, 10), RGB(0, 0, 0)
+}};
+
 #define u8(x)           (uint8_t)(x)
 #define PATH_START      u8(128)
 #define BRIDGE_START    u8(PATH_START+(build_blowharder_path_2bpp_len/16))
@@ -29,11 +40,33 @@ uint8_t overworld[map_size];
 uint8_t backtrack[map_size];
 uint8_t tmp_tile[4];
 
+// placeholder for the function available in gbdk-2020 4.0.1
+void fill_bkg_rect(uint8_t x, uint8_t y, uint8_t w, uint8_t h, uint8_t tile){
+    for(uint8_t tmp_x = x; tmp_x<x+w; ++tmp_x)
+        for(uint8_t tmp_y = y; tmp_y<y+h; ++tmp_y)
+            set_bkg_tiles(tmp_x, tmp_y, 1, 1, &tile);
+}
+void fill_win_rect(uint8_t x, uint8_t y, uint8_t w, uint8_t h, uint8_t tile){
+    for(uint8_t tmp_x = x; tmp_x<x+w; ++tmp_x)
+        for(uint8_t tmp_y = y; tmp_y<y+h; ++tmp_y)
+            set_win_tiles(tmp_x, tmp_y, 1, 1, &tile);
+}
+
 void init_screen() {
     HIDE_BKG;
     HIDE_WIN;
     HIDE_SPRITES;
     DISPLAY_OFF;
+    // initialize palettes
+    set_bkg_palette(0, 4, overworld_pal[0]);
+    // initialize assigned palettes
+    VBK_REG=1;
+    fill_bkg_rect(0, 0, 20, 18, 3);
+    fill_win_rect(0, 0, 20, 18, 3);
+    VBK_REG=0;
+    fill_bkg_rect(0, 0, 20, 18, '0');
+    fill_win_rect(0, 0, 20, 18, '0');
+    // load tilesets
     set_bkg_data(PATH_START,   (build_blowharder_path_2bpp_len/16),   build_blowharder_path_2bpp);
     set_bkg_data(BRIDGE_START, (build_blowharder_bridge_2bpp_len/16), build_blowharder_bridge_2bpp);
     set_bkg_data(FONT_START,   (build_squont8ng_micro_2bpp_len/16),   build_squont8ng_micro_2bpp);
@@ -66,6 +99,13 @@ void draw_overworld(){
     uint8_t x = 0;
     uint8_t y = 0;
     for(uint8_t i = 0; i < map_size; ++i){
+        VBK_REG=1;
+        tmp_tile[0] = (overworld[i]>>4)&0x1;
+        tmp_tile[2] = tmp_tile[0];
+        tmp_tile[1] = tmp_tile[2];
+        tmp_tile[3] = tmp_tile[1];
+        set_bkg_tiles(x, y, 2, 2, tmp_tile);
+        VBK_REG=0;
         tmp_tile[0] = PATH_START + overworld[i]*4;
         tmp_tile[2] = tmp_tile[0]+1;
         tmp_tile[1] = tmp_tile[2]+1;
