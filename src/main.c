@@ -84,39 +84,39 @@ void generate_overworld(){
     uint8_t visited = 1;
     uint8_t tile = arand() & 0x3F;// 16 tiles are left out (%64) map_size;
     // 0: E, 1: S, 2: W, 3: N
-    uint8_t direction;// = 1<<(arand() & 0x3);
-    //overworld[tile] = direction;
-    //write_hex(16, 0, tile);
-    //write_hex(18, 0, overworld[tile]);
+    uint8_t direction;
     if(DEBUG)
         set_win_tiles(3, 0, 17, 1, "V0TY0OT0D0MD0T0NT");
     do{
-        uint8_t next_tile = tile;
+        uint8_t next_tile;
         try = 0;
         direction = 1<<(arand() & 0x3);
         // check if direction is free
         // rotate otherwise
         // also calculate next tile
         do{
+            next_tile = tile;
             if(direction == dir_E){
-                // is that direction free && is it within map bounds?
-                if(!(overworld[tile] & dir_E) && (tile%map_width) != map_width-1){
-                    ++next_tile;
+                ++next_tile;
+                // is that direction free && is it within map bounds? && next_tile is empty?
+                if(!(overworld[tile] & dir_E) && (tile%map_width) != map_width-1 && !(overworld[next_tile])){
                     break;
                 }
             }else if(direction == dir_W){
-                if(!(overworld[tile] & dir_W) && (tile%map_width) != 0){
-                    --next_tile;
+                --next_tile;
+                if(!(overworld[tile] & dir_W) && (tile%map_width) != 0 && !(overworld[next_tile])){
                     break;
                 }
             }else if(direction == dir_N){
-                if(!(overworld[tile] & dir_N) && tile >= map_width){
-                    next_tile -= map_width;
+                next_tile -= map_width;
+                if(!(overworld[tile] & dir_N) && tile >= map_width && !(overworld[next_tile])){
                     break;
                 }
-            }else if(!(overworld[tile] & dir_S) && tile < (map_size - map_width)){
+            }else{
                 next_tile += map_width;
-                break;
+                if(!(overworld[tile] & dir_S) && tile < (map_size - map_width) && !(overworld[next_tile])){
+                    break;
+                }
             }
             // circular shift
             direction = ((direction << 1) | (direction >> 3)) & 0xF;
@@ -134,13 +134,11 @@ void generate_overworld(){
         }
         // actually draw path
         overworld[tile] |= direction;
-        //i = ((i << 4) | (i >> 4));
         direction = ((direction << 2) | (direction >> 2)) & 0xF;
         if(DEBUG)
             write_hex(13, 1, direction);
         // swap nibbles
         overworld[next_tile] |= direction;// |= u8( u8(direction & u8(0x0F)) << u8(4) | u8(direction & u8(0xF0)) >> u8(4) );
-        //TODO: remove this debug stuff
         if(DEBUG){
             write_hex(16, 1, tile);
             write_hex(18, 1, next_tile);
