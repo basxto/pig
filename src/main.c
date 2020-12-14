@@ -95,8 +95,9 @@ void init_screen() {
     // menu screen
     set_win_tiles(5,  7,  5, 1, "SEED2");
     set_win_tiles(7,  9,  5, 1, "START");
-    set_win_tiles(7, 10,  6, 1, "REROLL");
-    set_win_tiles(7, 11,  6, 1, "CHANGE");
+    set_win_tiles(7, 10,  5, 1, "0SLOW");
+    set_win_tiles(7, 11,  6, 1, "REROLL");
+    set_win_tiles(7, 12,  6, 1, "CHANGE");
     SHOW_BKG;
     DISPLAY_ON;
 }
@@ -106,13 +107,6 @@ void write_hex(uint8_t x, uint8_t y, uint8_t num){
     hex[0] = FONT_HEX + (num >> 4);
     hex[1] = FONT_HEX + (num & 0xF);
     set_win_tiles(x, y, 2, 1, hex);
-}
-
-void roll_seed(){
-    seed = LY_REG;
-    seed |= (uint16_t)DIV_REG << 8;
-    write_hex(11, 7, (uint8_t)(seed>>8));
-    write_hex(13, 7, (uint8_t)(seed));
 }
 
 void draw_overworld(){
@@ -255,6 +249,10 @@ void generate_overworld(){
                 //waitpadup();
                 wait_vbl_done();
             }
+            if(slowmode){
+                draw_overworld();
+                wait_vbl_done();
+            }
             //store tile in backtracker
             backtrack[visited-1]=tile;
             ++visited;
@@ -302,28 +300,118 @@ void generate_map(){
     // initialize random numbers
     initarand(seed);
     generate_overworld();
+    if(slowmode){
+        draw_overworld();
+        wait_vbl_done();
+        wait_vbl_done();
+    }
     generate_terrain();
 }
 
 void main() {
     init_screen();
+    uint8_t x = 3; // reroll
+    uint8_t y = 0;
+    // trigger reroll on first run
+    uint8_t buttons = J_A;
+    waitpad(0xFF);
+    SHOW_WIN;
     while(1){
-        waitpad(0xFF);
+        // handle input
+        if(x == 0){
+            if(buttons & J_LEFT){
+                ++y;
+            } else if(buttons & J_RIGHT){
+                --y;
+            }
+            if(y == u8(-1)){
+                // jump to last one
+                y = 3;
+            }
+            if(y == 4){
+                // jump to first one
+                y = 0;
+            }
+
+            uint16_t step = 0x1;
+            if(y == 1)
+                step = 0x10;
+            if(y == 2)
+                step = 0x100;
+            if(y == 3)
+                step = 0x1000;
+
+            if(buttons & J_UP){
+                seed += step;
+            } else if(buttons & J_DOWN){
+                seed -= step;
+            }
+
+            if(buttons & (J_B | J_A | J_SELECT | J_START)){
+                // jump back to select
+                x = 4;
+            }
+        } else {
+            if(buttons & J_UP){
+                --x;
+            } else if(buttons & J_DOWN){
+                ++x;
+            }
+            if(x == 0){
+                // jump to last one
+                x = 4;
+            }
+            if(x == 5){
+                // jump to first one
+                x = 1;
+            }
+
+            if(buttons & (J_B | J_A | J_SELECT | J_START)){
+                switch(x){
+                  case 2: // slow mode
+                    slowmode = true;
+                    move_win(7, 16*8);
+                  case 1: // start
+                    if(DEBUG)
+                        move_win(7, 16*8);
+                    set_win_tiles(16, 0, 4, 1, "SEED");
+                    write_hex(16, 1, (uint8_t)(seed>>8));
+                    write_hex(18, 1, (uint8_t)(seed));
+                    generate_map();
+                    draw_overworld();
+                    if(!DEBUG)
+                        move_win(7, 16*8);
+                    // wait for any button
+                    waitpad(0xFF);
+                    slowmode = false;
+                    break;
+                  case 3: // reroll
+                    seed = LY_REG;
+                    seed |= (uint16_t)DIV_REG << 8;
+                    break;
+                  case 4: // change
+                    x = 0;
+                    y = 0;
+                    break;
+                }
+            }
+        }
         waitpadup();
+        // draw menu
         move_win(7, 0);
-        SHOW_WIN;
-        roll_seed();
-        set_win_tiles(5, 9,  1, 1, "3");
-        waitpad(0xFF);
-        waitpadup();
-        if(DEBUG)
-            move_win(7, 16*8);
-        generate_map();
-        draw_overworld();
-        if(!DEBUG)
-            move_win(7, 16*8);
-        set_win_tiles(16, 0, 17, 1, "SEED");
-        write_hex(16, 1, (uint8_t)(seed>>8));
-        write_hex(18, 1, (uint8_t)(seed));
+        fill_win_rect(0, 0, 20, 2, '0');
+        // clean up arrows
+        fill_win_rect(11, 6, 4, 3, '0');
+        fill_win_rect(5, 9, 1, 4, '0');
+        // draw arrow(s)
+        if(x == 0)
+            set_win_tiles(14-y, 6, 1, 3, "^0]");
+        else
+            set_win_tiles(5, 8+x, 1, 1, "3");
+        // draw seed
+        write_hex(11, 7, (uint8_t)(seed>>8));
+        write_hex(13, 7, (uint8_t)(seed));
+
+        buttons = waitpad(0xFF);
     }
 }
