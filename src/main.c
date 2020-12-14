@@ -1,6 +1,7 @@
 #include <gb/gb.h>
 #include <stdint.h>
 #include <rand.h>
+#include <stdbool.h>
 
 #include "../build/squont8ng_micro_2bpp.c"
 #include "../build/blowharder_path_2bpp.c"
@@ -21,6 +22,11 @@ const unsigned int overworld_pal[][4] = {{
 	RGB(12, 25, 0), RGB(18, 18, 18), RGB(10, 10, 10), RGB(0, 0, 0)
 }};
 
+typedef struct {
+    uint8_t destination;
+    uint8_t length;
+} edge;
+
 #define u8(x)           (uint8_t)(x)
 #define PATH_START      u8(128)
 #define BRIDGE_START    u8(PATH_START+(build_blowharder_path_2bpp_len/16))
@@ -36,9 +42,23 @@ const unsigned int overworld_pal[][4] = {{
 #define terr_water      u8(1<<4)
 
 uint16_t seed;
+bool slowmode;
 uint8_t overworld[map_size];
 uint8_t backtrack[map_size];
 uint8_t tmp_tile[4];
+
+// at most 2*map_size due to deduplication
+// even though one row and col have less edges
+// index/2 is the position of the source node
+// first target is source-node +1 (next column)
+// second target is source-node +map_width (next row)
+
+// 640bytes :/
+// has duplicates of all edges
+// 4-edge array is easier to loop through than a node struct
+// 0 is east etc.
+// will contain all junctions and leafs
+edge graph[map_size][4];
 
 // placeholder for the function available in gbdk-2020 4.0.1
 void fill_bkg_rect(uint8_t x, uint8_t y, uint8_t w, uint8_t h, uint8_t tile){
@@ -71,7 +91,7 @@ void init_screen() {
     set_bkg_data(BRIDGE_START, (build_blowharder_bridge_2bpp_len/16), build_blowharder_bridge_2bpp);
     set_bkg_data(FONT_START,   (build_squont8ng_micro_2bpp_len/16),   build_squont8ng_micro_2bpp);
     // first screen
-    set_bkg_tiles(3, 9, 13, 1, "PRESS0START1");
+    set_bkg_tiles(3, 9, 12, 1, "PRESS0START1");
     // menu screen
     set_win_tiles(5,  7,  5, 1, "SEED2");
     set_win_tiles(7,  9,  5, 1, "START");
@@ -119,6 +139,8 @@ void draw_overworld(){
     }
 }
 
+// generates the initial overworld with DFS
+// also builds a graph with all junctions and leafs
 void generate_overworld(){
     // reset path
     for(uint8_t i = 0; i < map_size; ++i){
@@ -129,6 +151,11 @@ void generate_overworld(){
     uint8_t tile = arand() & 0x3F;// 16 tiles are left out (%64) map_size;
     // 0: E, 1: S, 2: W, 3: N
     uint8_t direction;
+    // for graph construction
+    uint8_t last_leaf = 0; // 0 is none
+    uint8_t last_junction = 0; // 0 is none
+    // leaf and junction == 0 means it’s going towards a leaf
+    uint8_t last_distance = 0;
     if(DEBUG)
         set_win_tiles(3, 0, 17, 1, "V0TY0OT0D0MD0T0NT");
     do{
@@ -166,7 +193,48 @@ void generate_overworld(){
             direction = ((direction << 1) | (direction >> 3)) & 0xF;
             ++try;
         }while(try < 4);
-        if(try < 4){
+        if(try >= 4){
+            // nothing was free, go one tile back
+            --visited;
+            // we just start going back from a leaf
+            if(last_leaf == 0 && last_junction == 0){
+                last_leaf = tile+1;
+                last_distance = 0;
+            }
+            uint8_t bits = 0;
+            uint8_t value = overworld[tile];
+            // count bits
+            for(uint8_t i = 0; i < 4; ++i){
+                bits += value & 0x1;
+                value >>= 1;
+            }
+            // more than 2 edges means junction <==> set bits >2
+            if(bits > 2){// this is a junction
+                if(DEBUG){
+                    set_win_tiles(0, 1, 2, 1, "NO");
+                    draw_overworld();
+                    waitpad(0xFF);
+                    waitpadup();
+                }
+                last_junction = tile+1;
+                last_distance = 0;
+                //TODO: add actual nodes and edges
+            }
+            // this can overflow, but we don’t use it in that case
+            tile = backtrack[visited-1];
+            ++last_distance;
+        } else {
+            if(last_leaf != 0 || last_junction != 0){
+                if(DEBUG){
+                    set_win_tiles(0, 1, 2, 1, "JN");
+                    draw_overworld();
+                    waitpad(0xFF);
+                    waitpadup();
+                }
+                last_leaf = 0;
+                last_junction = 0;
+                //TODO: add actual nodes and edges
+            }
             if(DEBUG){
                 write_hex(3, 1, visited);
                 write_hex(8, 1, overworld[tile]);
@@ -183,8 +251,9 @@ void generate_overworld(){
                 write_hex(16, 1, tile);
                 write_hex(18, 1, next_tile);
                 draw_overworld();
-                waitpad(0xFF);
-                waitpadup();
+                //waitpad(0xFF);
+                //waitpadup();
+                wait_vbl_done();
             }
             //store tile in backtracker
             backtrack[visited-1]=tile;
@@ -194,15 +263,17 @@ void generate_overworld(){
             // we visited all tiles and don’t have to go through the whole backtrack
             if(visited >= map_size)
                 break;
-        } else {
-            // nothing was free, go one tile back
-            --visited;
-            // this can overflow, but we don’t use it in that case
-            tile = backtrack[visited-1];
         }
     }while(visited);
 }
 
+// generate shortcuts -> makes path cyclic
+// find shortest distance between adjacent tiles with help of graph
+void generate_shortcuts(){
+    return;
+}
+
+// generate the shore
 void generate_terrain(){
     int height = 7;
     for(uint8_t x = 0; x < map_width; ++x){
