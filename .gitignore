@@ -2,6 +2,9 @@ build/
 *.gb
 *.gbc
 *.sym
+*.noi
+*.map
+*.ihx
 dev/*.exe
 dev/*.jar
 dev/*.ini

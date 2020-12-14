@@ -142,12 +142,12 @@ void generate_overworld(){
     }
     uint8_t try;
     uint8_t visited = 1;
-    uint8_t tile = arand() & 0x3F;// 16 tiles are left out (%64) map_size;
+    uint8_t tile = rand() & 0x3F;// 16 tiles are left out (%64) map_size;
     // 0: E, 1: S, 2: W, 3: N
     uint8_t direction;
     // for graph construction
-    uint8_t last_leaf = 0; // 0 is none
-    uint8_t last_junction = 0; // 0 is none
+    uint8_t last_node = 0; // 0 is none
+    uint8_t last_direction = 0; // we have to add the edge in right direction
     // leaf and junction == 0 means it’s going towards a leaf
     uint8_t last_distance = 0;
     if(DEBUG)
@@ -187,14 +187,12 @@ void generate_overworld(){
             direction = ((direction << 1) | (direction >> 3)) & 0xF;
             ++try;
         }while(try < 4);
+        uint8_t last_tile = backtrack[visited];
         if(try >= 4){
             // nothing was free, go one tile back
             --visited;
-            // we just start going back from a leaf
-            if(last_leaf == 0 && last_junction == 0){
-                last_leaf = tile+1;
-                last_distance = 0;
-            }
+            // reverse naming since we backtrack
+            next_tile = backtrack[visited-1];
             uint8_t bits = 0;
             uint8_t value = overworld[tile];
             // count bits
@@ -204,30 +202,72 @@ void generate_overworld(){
             }
             // more than 2 edges means junction <==> set bits >2
             if(bits > 2){// this is a junction
+                uint8_t direction_index = 1;// defaults to south
                 if(DEBUG){
                     set_win_tiles(0, 1, 2, 1, "NO");
                     draw_overworld();
                     waitpad(0xFF);
                     waitpadup();
                 }
-                last_junction = tile+1;
+                // find out direction from which we are coming
+                if(tile + 1 == last_tile){
+                    direction_index = 0;
+                }else if(tile - 1 == last_tile){
+                    direction_index = 2;
+                }else if(tile > last_tile){
+                    direction_index = 3;
+                }
+                // add edge to this node
+                --last_node;
+                graph[tile][direction_index].destination = last_node;
+                graph[tile][direction_index].length = last_distance;
+                graph[last_node][last_direction].destination = tile;
+                graph[last_node][last_direction].length = last_distance;
+                // goes on in next if
+            }
+            // store data for the last visited node
+            if(bits != 2){ // leafs or junctions
+                last_node = tile+1;
                 last_distance = 0;
-                //TODO: add actual nodes and edges
+                // find out direction which we are going
+                last_direction = 1;
+                if(next_tile + 1 == tile){
+                    last_direction = 2;
+                }else if(next_tile - 1 == tile){
+                    last_direction = 0;
+                }else if(next_tile < tile){
+                    last_direction = 3;
+                }
             }
             // this can overflow, but we don’t use it in that case
-            tile = backtrack[visited-1];
+            tile = next_tile;
             ++last_distance;
         } else {
-            if(last_leaf != 0 || last_junction != 0){
+            if(last_node != 0){
                 if(DEBUG){
                     set_win_tiles(0, 1, 2, 1, "JN");
                     draw_overworld();
                     waitpad(0xFF);
                     waitpadup();
                 }
-                last_leaf = 0;
-                last_junction = 0;
-                //TODO: add actual nodes and edges
+                //TODO: add actual nodes and edges ??
+                // find out direction from which we are coming
+                uint8_t direction_index = 1;
+                if(tile + 1 == last_tile){
+                    direction_index = 0;
+                }else if(tile - 1 == last_tile){
+                    direction_index = 2;
+                }else if(tile > last_tile){
+                    direction_index = 3;
+                }
+                // add edge to this node
+                --last_node;
+                graph[tile][direction_index].destination = last_node;
+                graph[tile][direction_index].length = last_distance;
+                graph[last_node][last_direction].destination = tile;
+                graph[last_node][last_direction].length = last_distance;
+
+                last_node = 0;
             }
             if(DEBUG){
                 write_hex(3, 1, visited);
@@ -244,10 +284,6 @@ void generate_overworld(){
             if(DEBUG){
                 write_hex(16, 1, tile);
                 write_hex(18, 1, next_tile);
-                draw_overworld();
-                //waitpad(0xFF);
-                //waitpadup();
-                wait_vbl_done();
             }
             if(slowmode){
                 draw_overworld();
@@ -258,11 +294,9 @@ void generate_overworld(){
             ++visited;
             // move to next tile
             tile = next_tile;
-            // we visited all tiles and don’t have to go through the whole backtrack
-            if(visited >= map_size)
-                break;
         }
     }while(visited);
+    //TODO: check if visited[0] is a node
 }
 
 // generate shortcuts -> makes path cyclic
@@ -275,7 +309,7 @@ void generate_shortcuts(){
 void generate_terrain(){
     int height = 7;
     for(uint8_t x = 0; x < map_width; ++x){
-        switch(arand() & 0x7){
+        switch(rand() & 0x7){
             case 0:
                 ++height;
                 break;
@@ -299,11 +333,33 @@ void generate_terrain(){
 void generate_map(){
     // initialize random numbers
     initarand(seed);
+    // reset graph
+    for(uint8_t i = 0; i < map_size; ++i)
+        for(uint8_t j = 0; j < 4; ++j)
+            graph[i][j].length = 0;
     generate_overworld();
     if(slowmode){
         draw_overworld();
         wait_vbl_done();
         wait_vbl_done();
+    }
+    if(DEBUG){
+        draw_overworld();
+        waitpad(0xFF);
+        waitpadup();
+        // for debugging visualization invert all nodes
+        // manually redraws all node tiles
+        for(uint8_t i = 0; i < map_size; ++i){
+            uint8_t tile = 0;
+            for(uint8_t j = 0; j < 4; ++j)
+                if(graph[i][j].length != 0)
+                    tile |= 0x1<<j;
+            if(tile != 0)
+                overworld[i] = tile;
+        }
+        draw_overworld();
+        waitpad(0xFF);
+        waitpadup();
     }
     generate_terrain();
 }
