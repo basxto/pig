@@ -297,6 +297,30 @@ void generate_overworld(){
         }
     }while(visited);
     //TODO: check if visited[0] is a node
+    tile = backtrack[0];
+    uint8_t direction_index = 4; // 0-3 are legit indices
+    --last_node;
+    switch(overworld[tile]){
+      case dir_E:
+        direction_index = 0;
+        break;
+      case dir_S:
+        direction_index = 1;
+        break;
+      case dir_W:
+        direction_index = 2;
+        break;
+      case dir_N:
+        direction_index = 3;
+        break;
+    }
+    // if it’s a leaf
+    if(direction_index != 4){
+        graph[tile][direction_index].destination = last_node;
+        graph[tile][direction_index].length = last_distance;
+        graph[last_node][last_direction].destination = tile;
+        graph[last_node][last_direction].length = last_distance;
+    }
 }
 
 // generate shortcuts -> makes path cyclic
@@ -354,8 +378,10 @@ void generate_map(){
             for(uint8_t j = 0; j < 4; ++j)
                 if(graph[i][j].length != 0)
                     tile |= 0x1<<j;
-            if(tile != 0)
+            if(tile != 0){
                 overworld[i] = tile;
+                //overworld[i] = ~overworld[i];
+            }
         }
         draw_overworld();
         waitpad(0xFF);
