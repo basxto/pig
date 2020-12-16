@@ -1,0 +1,18 @@
+{
+    "files.exclude": {
+        "*.gb": true,
+        "*.noi": true,
+        "*.ihx": true,
+        "*.map": true,
+        "*.sav": true,
+        "*.sym": true,
+        "build/": true,
+    },
+    "C_Cpp.default.intelliSenseMode": "gcc-x64",
+    "files.trimTrailingWhitespace": true,
+    "C_Cpp.default.systemIncludePath" : [
+        "/opt/gbdk-2020/include/",
+        "/opt/gbdk-2020/include/asm/",
+        "/usr/share/sdcc/include/"
+    ]
+}

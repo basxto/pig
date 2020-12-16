@@ -1,0 +1,18 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "emulicious-debugger",
+            "name": "Launch in Emulicious",
+            "request": "launch",
+            "program": "pig.gb",
+            "port": 58870
+        },
+        {
+            "type": "emulicious-debugger",
+            "name": "Attach to Emulicious",
+            "request": "attach",
+            "port": 58870
+        }
+    ]
+}

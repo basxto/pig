@@ -5,7 +5,9 @@ build/
 *.noi
 *.map
 *.ihx
+*.cdb
 dev/*.exe
 dev/*.jar
 dev/*.ini
 *.sav
+*.code-workspace

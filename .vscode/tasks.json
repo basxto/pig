@@ -1,0 +1,90 @@
+{
+    // See https://go.microsoft.com/fwlink/?LinkId=733558
+    // for the documentation about the tasks.json format
+    "version": "2.0.0",
+    "problemMatcher": [{
+        "fileLocation": ["relative", "${workspaceFolder}"],
+        "pattern": [{// makebin
+            "kind": "file",
+            "regexp": "^\\+ makebin .* (\\w+\\.ihx).*$",
+            "file": 1,
+          },{// makebin
+            "kind": "file",
+            "regexp": "^(error): (size of the buffer is too small\\.)$",
+            "severity": 1,
+            "message": 2
+          }]
+    },{
+        "fileLocation": ["relative", "${workspaceFolder}"],
+        "pattern": [{// png2gb
+            "kind": "file",
+            "regexp": "^(.*\\.png): (warning|error): (.*)$",
+            "file": 1,
+            "severity": 2,
+            "message": 3
+          }]
+    },{
+        "owner": "c",
+        "fileLocation": ["relative", "${workspaceFolder}"],
+        "pattern": {// sdcc compiler
+          "regexp": "^(.*):(\\d+):\\s+(warning|error) (\\d+):\\s+(.*)$",
+          "file": 1,
+          "line": 2,
+          "severity": 3,
+          "code": 4,
+          "message": 5
+        }
+    }],
+    "tasks": [
+        {
+            "label": "build",
+            "type": "shell",
+            "command": "make",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "silent"
+            }
+        },
+        {
+            "label": "run",
+            "type": "shell",
+            "command": "make",
+            "args": [
+                "run"
+            ],
+            "group": {
+                "kind": "test",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "silent"
+            }
+        },
+        {
+            "label": "clean",
+            "type": "shell",
+            "command": "make",
+            "args": [
+                "clean"
+            ],
+            "presentation": {
+                "reveal": "never"
+            }
+        },
+        {
+            "label": "free space left",
+            "type": "shell",
+            "command": "make",
+            "args": [
+                "spaceleft"
+            ],
+            "group": "build",
+            "presentation": {
+                "reveal": "always"
+            }
+        }
+    ]
+}
