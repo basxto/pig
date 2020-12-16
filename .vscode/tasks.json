@@ -37,13 +37,59 @@
     }],
     "tasks": [
         {
-            "label": "build",
+            "label": "build production",
+            "type": "shell",
+            "command": "make",
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            },
+            "presentation": {
+                "reveal": "silent"
+            }
+        },
+        {
+            "label": "build production (force)",
+            "type": "shell",
+            "command": "make",
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            },
+            "args": [
+                "-B"
+            ],
+            "presentation": {
+                "reveal": "silent"
+            }
+        },
+        {
+            "label": "build debug",
             "type": "shell",
             "command": "make",
             "group": {
                 "kind": "build",
                 "isDefault": true
             },
+            "args": [
+                "DEBUG=1"
+            ],
+            "presentation": {
+                "reveal": "silent"
+            }
+        },
+        {
+            "label": "build debug (force)",
+            "type": "shell",
+            "command": "make",
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            },
+            "args": [
+                "DEBUG=1",
+                "-B"
+            ],
             "presentation": {
                 "reveal": "silent"
             }

@@ -5,14 +5,19 @@ MKROM?=$(SDCCBIN)makebin -Z -yc
 CC=$(SDCCBIN)sdcc -mgbz80 --fsigned-char --no-std-crt0 -I "$(GBDKDIR)/include" -I "$(GBDKDIR)/include/asm" -c $(CFLAGS)
 CA=$(SDCCBIN)sdasgb -plosgff
 LD=$(SDCCBIN)sdldgb
-XXD=xxd -i 
+XXD=xxd -i
 EMU?=sameboy
-#EMU?=java -jar dev/Emulicious.jar 
+#EMU?=java -jar dev/Emulicious.jar
 pngconvert?=rgbgfx
 ROM=pig
 BANK=
 MKROM+= -yt 0x03 -ya 1
 BUILDIR=build/
+
+ifeq ($(DEBUG),1)
+CFLAGS += --debug --nolospre --no-peep
+LD += -y
+endif
 
 .PHONY: build
 build: $(ROM).gb
