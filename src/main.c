@@ -44,7 +44,12 @@ typedef struct {
 uint16_t seed;
 bool slowmode;
 uint8_t overworld[map_size];
+// for DFS backtracking and dijkstra back pointers
 uint8_t backtrack[map_size];
+// dijkstra's node queque
+uint8_t queue[map_size];
+// distance from starting node
+uint8_t distance[map_size];
 uint8_t tmp_tile[4];
 
 // at most 2*map_size due to deduplication
@@ -296,7 +301,7 @@ void generate_overworld(){
             tile = next_tile;
         }
     }while(visited);
-    //TODO: check if visited[0] is a node
+    // check start tile
     tile = backtrack[0];
     uint8_t direction_index = 4; // 0-3 are legit indices
     --last_node;
@@ -323,10 +328,96 @@ void generate_overworld(){
     }
 }
 
+// travel the path until a node is found
+// return length
+// return tile through pointer
+uint8_t nearest_node(uint8_t* tile, uint8_t direction){
+    uint8_t current = *tile;
+    uint8_t length = 0;
+    // while it’s not a node
+    while (length != 0xFF && (graph[current][0].length | graph[current][1].length | graph[current][2].length | graph[current][3].length) == 0){
+        ++length;
+        switch(direction){
+          case dir_E:
+            ++current;
+            if((current%map_width) == 0){
+                length = 0xFF;
+            }
+            break;
+          case dir_W:
+            if((current%map_width) == 0){
+                length = 0xFF;
+            }
+            --current;
+            break;
+          case dir_N:
+            if(current < map_width){
+                length = 0xFF;
+            }
+            current -= map_width;
+            break;
+          case dir_S:
+            current += map_width;
+            if(current > map_size){
+                length = 0xFF;
+            }
+            break;
+        }
+        // mirror direction
+        direction = ((direction << 2) | (direction >> 2)) & 0xF;
+        // works if only 2 bits are set
+        direction ^= overworld[current];
+    }
+    *tile = current;
+    return length;
+}
+
+// mhm check them checkerboard style with dijkstra
 // generate shortcuts -> makes path cyclic
 // find shortest distance between adjacent tiles with help of graph
 void generate_shortcuts(){
-    return;
+    // 0x80 means from north, otherwise from west
+    // max distance for 10x8 is 80
+    edge longest = {0xFF, 0x00};
+    edge src[2]; // virtual source node
+    edge dst[2]; // virtual destination node
+    uint8_t shortest;
+    uint8_t value;
+    uint8_t bits;
+    uint8_t tile;
+    for(uint8_t i = 0; i < map_size; ++i){
+        src[0].length = 0xFF;
+        src[1].length = 0xFF;
+        dst[0].length = 0xFF;
+        dst[1].length = 0xFF;
+        shortest = 0xFF;
+        tile=i;
+        value = overworld[tile];
+        uint8_t node = 0;
+        // loop through directions
+        for(uint8_t dir = 1; dir < 0x10; dir <<= 1){
+            if(value & dir){
+                src[node].destination = tile;
+                src[node].length = nearest_node(&(src[node].destination), dir);
+                ++node;
+            }
+        }
+        tile = i + 1;
+        value = overworld[tile];
+        node = 0;
+        for(uint8_t dir = 1; dir < 0x10; dir <<= 1){
+            if(value & dir){
+                dst[node].destination = tile;
+                dst[node].length = nearest_node(&(dst[node].destination), dir);
+                ++node;
+            }
+        }
+        // clear distances
+        for(uint8_t j = 0; j < map_size; ++j)
+            distance[j]  = 0xFF;
+        // TODO: do dijkstra here
+
+    }
 }
 
 // generate the shore
@@ -362,6 +453,12 @@ void generate_map(){
         for(uint8_t j = 0; j < 4; ++j)
             graph[i][j].length = 0;
     generate_overworld();
+    if(slowmode){
+        draw_overworld();
+        wait_vbl_done();
+        wait_vbl_done();
+    }
+    generate_shortcuts();
     if(slowmode){
         draw_overworld();
         wait_vbl_done();
