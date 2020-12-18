@@ -17,7 +17,7 @@ const unsigned int overworld_pal[][4] = {{
 },{
 	RGB(28, 16, 0), RGB(8, 20, 31), RGB(18, 7, 0), RGB(0, 0, 0)
 },{
-	RGB(12, 25, 0), RGB(18, 7, 0), RGB(3, 14, 0), RGB(0, 0, 0)
+	RGB(12, 25, 0), RGB(12, 25, 0), RGB(3, 14, 0), RGB(0, 0, 0)
 },{
 	RGB(12, 25, 0), RGB(18, 18, 18), RGB(10, 10, 10), RGB(0, 0, 0)
 }};
@@ -54,6 +54,10 @@ uint8_t queue[map_size];
 uint8_t distance[map_size];
 uint8_t tmp_tile[4];
 
+// block paths ; &0x80 means comming from north; otherwise from west
+uint8_t obstacles[8];
+uint8_t stones;
+
 // at most 2*map_size due to deduplication
 // even though one row and col have less edges
 // index/2 is the position of the source node
@@ -86,6 +90,7 @@ void init_screen() {
     DISPLAY_OFF;
     // initialize palettes
     set_bkg_palette(0, 4, overworld_pal[0]);
+    set_sprite_palette(0, 4, overworld_pal[0]);
     // initialize assigned palettes
     VBK_REG=1;
     fill_bkg_rect(0, 0, 20, 18, 3);
@@ -97,6 +102,7 @@ void init_screen() {
     set_bkg_data(PATH_START,   (build_blowharder_path_2bpp_len/16),   build_blowharder_path_2bpp);
     set_bkg_data(BRIDGE_START, (build_blowharder_bridge_2bpp_len/16), build_blowharder_bridge_2bpp);
     set_bkg_data(FONT_START,   (build_squont8ng_micro_2bpp_len/16),   build_squont8ng_micro_2bpp);
+    set_sprite_data(FONT_START,(build_squont8ng_micro_2bpp_len/16),   build_squont8ng_micro_2bpp);
     // first screen
     set_bkg_tiles(3, 9, 12, 1, "PRESS0START1");
     // menu screen
@@ -136,6 +142,20 @@ void draw_overworld(){
         if(x >= (map_width*2)){
             x = 0;
             y += 2;
+        }
+    }
+    for(uint8_t i = 0; i < 8; ++i){
+        if(obstacles[i] != 0xFF){
+            uint8_t x = ((obstacles[i]%map_width)*16)+4;
+            uint8_t y = ((obstacles[i]/map_width)*16)+20;
+            move_sprite(i, x, y);
+            if(i > stones){
+                set_sprite_prop(i, 2);
+                set_sprite_tile(i, '[');
+            } else {
+                set_sprite_prop(i, 3);
+                set_sprite_tile(i, '\\');
+            }
         }
     }
 }
@@ -382,7 +402,7 @@ void generate_shortcuts(){
     // max distance for 10x8 is 80
     edge longest = {0xFF, 0x00};
     edge src[2]; // virtual source node
-    edge dst[2]; // virtual destination node
+    edge dst[2][2]; // virtual destination node
     uint8_t shortest;
     uint8_t value;
     uint8_t bits;
@@ -392,8 +412,10 @@ void generate_shortcuts(){
     for(uint8_t i = 0; i < (map_size-1); ++i){//map_size
         src[0].length = 0xFF;
         src[1].length = 0xFF;
-        dst[0].length = 0xFF;
-        dst[1].length = 0xFF;
+        dst[0][0].length = 0xFF;
+        dst[0][1].length = 0xFF;
+        dst[1][0].length = 0xFF;
+        dst[1][1].length = 0xFF;
         shortest = 0xFF;
         tile=i;
         value = overworld[tile];
@@ -409,28 +431,31 @@ void generate_shortcuts(){
         }
         tile = i + 1;
         // exclude last column
-        if(tile % map_width != 0){
+        if((tile % map_width) != 0){
             value = overworld[tile];
             node = 0;
             for(uint8_t dir = 1; dir < 0x10; dir <<= 1){
                 if(value & dir && node < 2){
-                    dst[node].destination = tile;
-                    dst[node].length = nearest_node(&(dst[node].destination), dir);
+                    dst[0][node].destination = tile;
+                    dst[0][node].length = nearest_node(&(dst[0][node].destination), dir);
                     ++node;
                 }
 
             }
             // check if both have all edges set
-            if(src[0].length != 0xFF && src[1].length != 0xFF && dst[0].length != 0xFF && dst[1].length != 0xFF){
+            if(src[0].length != 0xFF && src[1].length != 0xFF && dst[0][0].length != 0xFF && dst[0][1].length != 0xFF){
                 // find out if it’s on the same path as src
-                if(src[0].destination == dst[1].destination && src[1].destination == dst[0].destination){
-                    distance[tile] = abs8(src[0].length, dst[1].length);
+                if(src[0].destination == dst[0][1].destination && src[1].destination == dst[0][0].destination){
+                    distance[tile] = abs8(src[0].length, dst[0][1].length);
                 }
-                if(src[0].destination == dst[0].destination && src[1].destination == dst[1].destination){
-                    distance[tile] = abs8(src[0].length, dst[0].length);
+                if(src[0].destination == dst[0][0].destination && src[1].destination == dst[0][1].destination){
+                    distance[tile] = abs8(src[0].length, dst[0][0].length);
                 }
             }
         }
+        // don't do dijkstra if there are no nodes to look for
+        if(dst[0][0].length == 0xFF && dst[0][1].length == 0xFF)
+            continue;
         // clear distances
         for(uint8_t j = 0; j < map_size; ++j)
             distance[j]  = 0xFF;
@@ -479,10 +504,10 @@ void generate_shortcuts(){
         tile=i+1;
         // calculate distance of final tile
         if(distance[tile] == 0xFF){
-            if(dst[0].length!=0xFF)
-                distance[tile] = distance[dst[0].destination]+dst[0].length;
-            if(dst[1].length!=0xFF && distance[dst[1].destination]+dst[1].length < distance[tile])
-                distance[tile] = distance[dst[1].destination]+dst[1].length;
+            if(dst[0][0].length!=0xFF)
+                distance[tile] = distance[dst[0][0].destination]+dst[0][0].length;
+            if(dst[0][1].length!=0xFF && distance[dst[0][1].destination]+dst[0][1].length < distance[tile])
+                distance[tile] = distance[dst[0][1].destination]+dst[0][1].length;
         }
         // is this distance the longest shortest path
         if(distance[tile] != 0xFF && distance[tile] > longest.length){
@@ -492,7 +517,7 @@ void generate_shortcuts(){
     }
 
     // if a shortcut exists, draw it and add new nodes
-    if(longest.length != 0){
+    if(longest.length > 1){
         tile = longest.destination-1;
         // TODO: create new nodes
         value = overworld[tile];
@@ -514,14 +539,14 @@ void generate_shortcuts(){
         d = 0;
         for(uint8_t dir = 1; dir < 0x10; dir <<= 1){
             if(value & dir){
-                dst[node].destination = tile;
-                dst[node].length = nearest_node(&(dst[node].destination), dir);
-                graph[tile][d].destination = dst[node].destination;
+                dst[0][node].destination = tile;
+                dst[0][node].length = nearest_node(&(dst[0][node].destination), dir);
+                graph[tile][d].destination = dst[0][node].destination;
                 ++node;
             }
             ++d;
         }
-        // change adjacent nodes of first node
+        // change adjacent nodes of second node
         node = 0;
         d = 0;
         for(uint8_t dir = 1; dir < 0x10; dir <<= 1){
@@ -552,14 +577,14 @@ void generate_shortcuts(){
         d = 0;
         for(uint8_t dir = 1; dir < 0x10; dir <<= 1){
             if(value & dir){
-                uint8_t first_node = dst[node].destination;
-                uint8_t second_node = dst[(node+1)&0x1].destination;
-                graph[tile][d].length = dst[node].length;
+                uint8_t first_node = dst[0][node].destination;
+                uint8_t second_node = dst[0][(node+1)&0x1].destination;
+                graph[tile][d].length = dst[0][node].length;
                 for(uint8_t i = 0; i < 4; ++i){
                     // replace with new node
                     if(graph[first_node][i].destination == second_node){
                         graph[first_node][i].destination = tile;
-                        graph[first_node][i].length = dst[node].length;
+                        graph[first_node][i].length = dst[0][node].length;
                     }
                 }
                 ++node;
@@ -571,6 +596,10 @@ void generate_shortcuts(){
         graph[tile][0].length = 1;
         // draw new path
         overworld[tile] |= dir_E;
+        d=0;
+        while(obstacles[d]!=0xFF)
+            ++d;
+        obstacles[d] = longest.destination;
     }
 }
 
@@ -608,19 +637,24 @@ void generate_map(){
             graph[i][j].destination = 0xFF;
             graph[i][j].length = 0;
         }
+    // reset obstacles
+    for(uint8_t i = 0; i < 8; ++i){
+        obstacles[i] = 0xFF;
+        move_sprite(i, 0, 0);
+    }
+    stones = 1;
     generate_overworld();
     if(slowmode){
+        SHOW_SPRITES;
         draw_overworld();
         wait_vbl_done();
         wait_vbl_done();
     }
-    generate_shortcuts();
-    draw_overworld();
-    generate_shortcuts();
-    draw_overworld();
-    generate_shortcuts();
-    draw_overworld();
-    generate_shortcuts();
+    for(uint8_t i = 0; i < 8; ++i){
+        generate_shortcuts();
+        if(slowmode)
+            draw_overworld();
+    }
     if(slowmode){
         draw_overworld();
         wait_vbl_done();
@@ -719,11 +753,13 @@ void main() {
                     write_hex(16, 1, (uint8_t)(seed>>8));
                     write_hex(18, 1, (uint8_t)(seed));
                     generate_map();
+                    SHOW_SPRITES;
                     draw_overworld();
                     if(!DEBUG)
                         move_win(7, 16*8);
                     // wait for any button
                     waitpad(0xFF);
+                    HIDE_SPRITES;
                     slowmode = false;
                     break;
                   case 3: // reroll
