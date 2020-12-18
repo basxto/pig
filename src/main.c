@@ -387,6 +387,7 @@ void generate_shortcuts(){
     uint8_t value;
     uint8_t bits;
     uint8_t tile;
+    uint8_t node;
     // if we just check the tile to the right, skip last tile
     for(uint8_t i = 0; i < (map_size-1); ++i){//map_size
         src[0].length = 0xFF;
@@ -396,7 +397,7 @@ void generate_shortcuts(){
         shortest = 0xFF;
         tile=i;
         value = overworld[tile];
-        uint8_t node = 0;
+        node = 0;
         // loop through directions
         for(uint8_t dir = 1; dir < 0x10; dir <<= 1){
             // node == 2 would be a junction
@@ -405,8 +406,6 @@ void generate_shortcuts(){
                 src[node].length = nearest_node(&(src[node].destination), dir);
                 ++node;
             }
-            if(node == 2)
-                break;
         }
         tile = i + 1;
         // exclude last column
@@ -419,9 +418,7 @@ void generate_shortcuts(){
                     dst[node].length = nearest_node(&(dst[node].destination), dir);
                     ++node;
                 }
-                // node == 2 would be a junction
-                if(node == 2)
-                    break;
+
             }
             // check if both have all edges set
             if(src[0].length != 0xFF && src[1].length != 0xFF && dst[0].length != 0xFF && dst[1].length != 0xFF){
@@ -494,11 +491,86 @@ void generate_shortcuts(){
         }
     }
 
+    // if a shortcut exists, draw it and add new nodes
     if(longest.length != 0){
-        // draw new path
-        overworld[longest.destination-1] |= dir_E;
-        overworld[longest.destination] |= dir_W;
+        tile = longest.destination-1;
         // TODO: create new nodes
+        value = overworld[tile];
+        node = 0;
+        uint8_t d = 0;
+        for(uint8_t dir = 1; dir < 0x10; dir <<= 1){
+            if(value & dir){
+                src[node].destination = tile;
+                // nearest_node needs graph[tile][d].length untouched
+                src[node].length = nearest_node(&(src[node].destination), dir);
+                graph[tile][d].destination = src[node].destination;
+                ++node;
+            }
+            ++d;
+        }
+        ++tile;
+        value = overworld[tile];
+        node = 0;
+        d = 0;
+        for(uint8_t dir = 1; dir < 0x10; dir <<= 1){
+            if(value & dir){
+                dst[node].destination = tile;
+                dst[node].length = nearest_node(&(dst[node].destination), dir);
+                graph[tile][d].destination = dst[node].destination;
+                ++node;
+            }
+            ++d;
+        }
+        // change adjacent nodes of first node
+        node = 0;
+        d = 0;
+        for(uint8_t dir = 1; dir < 0x10; dir <<= 1){
+            if(value & dir){
+                uint8_t first_node = src[node].destination;
+                uint8_t second_node = src[(node+1)&0x1].destination;
+                graph[tile][d].length = src[node].length;
+                for(uint8_t i = 0; i < 4; ++i){
+                    // replace with new node
+                    if(graph[first_node][i].destination == second_node){
+                        graph[first_node][i].destination = tile;
+                        graph[first_node][i].length = src[node].length;
+                    }
+                }
+                ++node;
+            }
+            ++d;
+        }
+
+        // connect the neighbors
+        graph[tile][2].destination = tile - 1;
+        graph[tile][2].length = 1;
+        // draw new path
+        overworld[tile] |= dir_W;
+        --tile;
+        // change adjacent nodes of first node
+        node = 0;
+        d = 0;
+        for(uint8_t dir = 1; dir < 0x10; dir <<= 1){
+            if(value & dir){
+                uint8_t first_node = dst[node].destination;
+                uint8_t second_node = dst[(node+1)&0x1].destination;
+                graph[tile][d].length = dst[node].length;
+                for(uint8_t i = 0; i < 4; ++i){
+                    // replace with new node
+                    if(graph[first_node][i].destination == second_node){
+                        graph[first_node][i].destination = tile;
+                        graph[first_node][i].length = dst[node].length;
+                    }
+                }
+                ++node;
+            }
+            ++d;
+        }
+        // connect the neighbors
+        graph[tile][0].destination = tile+1;
+        graph[tile][0].length = 1;
+        // draw new path
+        overworld[tile] |= dir_E;
     }
 }
 
@@ -532,14 +604,22 @@ void generate_map(){
     initarand(seed);
     // reset graph
     for(uint8_t i = 0; i < map_size; ++i)
-        for(uint8_t j = 0; j < 4; ++j)
+        for(uint8_t j = 0; j < 4; ++j){
+            graph[i][j].destination = 0xFF;
             graph[i][j].length = 0;
+        }
     generate_overworld();
     if(slowmode){
         draw_overworld();
         wait_vbl_done();
         wait_vbl_done();
     }
+    generate_shortcuts();
+    draw_overworld();
+    generate_shortcuts();
+    draw_overworld();
+    generate_shortcuts();
+    draw_overworld();
     generate_shortcuts();
     if(slowmode){
         draw_overworld();
