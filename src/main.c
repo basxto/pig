@@ -28,13 +28,15 @@ typedef struct {
 } edge;
 
 #define u8(x)           (uint8_t)(x)
+#define abs8(a,b)      (a > b ? a - b : b - a)
 #define PATH_START      u8(128)
 #define BRIDGE_START    u8(PATH_START+(build_blowharder_path_2bpp_len/16))
 #define FONT_START      u8(48)
 #define FONT_ASCII      u8(FONT_START-48)
 #define FONT_HEX        u8(FONT_START+7)
 #define map_width       u8(10)
-#define map_size        u8(8*map_width)
+#define map_heigth      u8(8)
+#define map_size        u8(map_heigth*map_width)
 #define dir_E           u8(1<<0)
 #define dir_S           u8(1<<1)
 #define dir_W           u8(1<<2)
@@ -385,7 +387,8 @@ void generate_shortcuts(){
     uint8_t value;
     uint8_t bits;
     uint8_t tile;
-    for(uint8_t i = 0; i < map_size; ++i){
+    // if we just check the tile to the right, skip last tile
+    for(uint8_t i = 0; i < (map_size-1); ++i){//map_size
         src[0].length = 0xFF;
         src[1].length = 0xFF;
         dst[0].length = 0xFF;
@@ -396,27 +399,106 @@ void generate_shortcuts(){
         uint8_t node = 0;
         // loop through directions
         for(uint8_t dir = 1; dir < 0x10; dir <<= 1){
-            if(value & dir){
+            // node == 2 would be a junction
+            if(value & dir && node < 2){
                 src[node].destination = tile;
                 src[node].length = nearest_node(&(src[node].destination), dir);
                 ++node;
             }
+            if(node == 2)
+                break;
         }
         tile = i + 1;
-        value = overworld[tile];
-        node = 0;
-        for(uint8_t dir = 1; dir < 0x10; dir <<= 1){
-            if(value & dir){
-                dst[node].destination = tile;
-                dst[node].length = nearest_node(&(dst[node].destination), dir);
-                ++node;
+        // exclude last column
+        if(tile % map_width != 0){
+            value = overworld[tile];
+            node = 0;
+            for(uint8_t dir = 1; dir < 0x10; dir <<= 1){
+                if(value & dir && node < 2){
+                    dst[node].destination = tile;
+                    dst[node].length = nearest_node(&(dst[node].destination), dir);
+                    ++node;
+                }
+                // node == 2 would be a junction
+                if(node == 2)
+                    break;
+            }
+            // check if both have all edges set
+            if(src[0].length != 0xFF && src[1].length != 0xFF && dst[0].length != 0xFF && dst[1].length != 0xFF){
+                // find out if it’s on the same path as src
+                if(src[0].destination == dst[1].destination && src[1].destination == dst[0].destination){
+                    distance[tile] = abs8(src[0].length, dst[1].length);
+                }
+                if(src[0].destination == dst[0].destination && src[1].destination == dst[1].destination){
+                    distance[tile] = abs8(src[0].length, dst[0].length);
+                }
             }
         }
         // clear distances
         for(uint8_t j = 0; j < map_size; ++j)
             distance[j]  = 0xFF;
-        // TODO: do dijkstra here
+        // this is already the first step of dijkstra
+        queue[0] = src[0].destination;
+        distance[src[0].destination] = src[0].length;
+        if(src[1].length != 0xFF){
+            queue[1] = src[1].destination;
+            distance[src[1].destination] = src[1].length;
+        } else {
+            queue[1] = 0xFF;
+        }
+        // marks end of the queue
+        queue[2] = 0xFF;
+        // loop through the node queue
+        while(queue[0] != 0xFF){
+            uint8_t j = 1;
+            // find nearest node in queue
+            while(queue[j] != 0xFF){
+                // swap if the last one was smaller
+                if(distance[queue[j]] > distance[shortest]){
+                    shortest = queue[j-1];
+                    queue[j-1] = queue[j];
+                    queue[j] = shortest;
+                }
+                ++j;
+            }
+            // set j to last element
+            // last node is the smallest
+            --j; // this will be overwritten
+            shortest = queue[j];
+            // update distances
+            for(uint8_t d = 0; d < 4; ++d){
+                // check whether it already has a shortest path
+                if(graph[shortest][d].length != 0 && distance[graph[shortest][d].destination] == 0xFF){
+                    // add to queue
+                    queue[j] = graph[shortest][d].destination;
+                    // calculate distance
+                    distance[queue[j]] = distance[shortest] + graph[shortest][d].length;
+                    ++j;
+                }
+            }
+            // remove node
+            queue[j] = 0xFF;
+        }
+        tile=i+1;
+        // calculate distance of final tile
+        if(distance[tile] == 0xFF){
+            if(dst[0].length!=0xFF)
+                distance[tile] = distance[dst[0].destination]+dst[0].length;
+            if(dst[1].length!=0xFF && distance[dst[1].destination]+dst[1].length < distance[tile])
+                distance[tile] = distance[dst[1].destination]+dst[1].length;
+        }
+        // is this distance the longest shortest path
+        if(distance[tile] != 0xFF && distance[tile] > longest.length){
+            longest.length = distance[tile];
+            longest.destination = tile;
+        }
+    }
 
+    if(longest.length != 0){
+        // draw new path
+        overworld[longest.destination-1] |= dir_E;
+        overworld[longest.destination] |= dir_W;
+        // TODO: create new nodes
     }
 }
 
