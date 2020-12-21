@@ -218,6 +218,8 @@ void generate_overworld(){
         if(try >= 4){
             // nothing was free, go one tile back
             --visited;
+            // this tile was visited, so must be placed on backtrack
+            backtrack[visited] = tile;
             // reverse naming since we backtrack
             next_tile = backtrack[visited-1];
             uint8_t bits = 0;
@@ -230,16 +232,10 @@ void generate_overworld(){
             // more than 2 edges means junction <==> set bits >2
             if(bits > 2){// this is a junction
                 uint8_t direction_index = 1;// defaults to south
-                if(DEBUG){
-                    set_win_tiles(0, 1, 2, 1, "NO");
-                    draw_overworld();
-                    waitpad(0xFF);
-                    waitpadup();
-                }
                 // find out direction from which we are coming
-                if(tile + 1 == last_tile){
+                if(u8(tile + 1) == last_tile){
                     direction_index = 0;
-                }else if(tile - 1 == last_tile){
+                }else if(u8(tile - 1) == last_tile){
                     direction_index = 2;
                 }else if(tile > last_tile){
                     direction_index = 3;
@@ -258,9 +254,9 @@ void generate_overworld(){
                 last_distance = 0;
                 // find out direction which we are going
                 last_direction = 1;
-                if(next_tile + 1 == tile){
+                if(u8(next_tile + 1) == tile){
                     last_direction = 2;
-                }else if(next_tile - 1 == tile){
+                }else if(u8(next_tile - 1) == tile){
                     last_direction = 0;
                 }else if(next_tile < tile){
                     last_direction = 3;
@@ -271,18 +267,12 @@ void generate_overworld(){
             ++last_distance;
         } else {
             if(last_node != 0){
-                if(DEBUG){
-                    set_win_tiles(0, 1, 2, 1, "JN");
-                    draw_overworld();
-                    waitpad(0xFF);
-                    waitpadup();
-                }
-                //TODO: add actual nodes and edges ??
+                uint8_t old_next_tile = backtrack[visited-2];
                 // find out direction from which we are coming
                 uint8_t direction_index = 1;
-                if(tile + 1 == last_tile){
+                if(u8(tile + 1) == last_tile){
                     direction_index = 0;
-                }else if(tile - 1 == last_tile){
+                }else if(u8(tile - 1) == last_tile){
                     direction_index = 2;
                 }else if(tile > last_tile){
                     direction_index = 3;
@@ -293,7 +283,6 @@ void generate_overworld(){
                 graph[tile][direction_index].length = last_distance;
                 graph[last_node][last_direction].destination = tile;
                 graph[last_node][last_direction].length = last_distance;
-
                 last_node = 0;
             }
             if(DEBUG){
